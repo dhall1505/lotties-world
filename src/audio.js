@@ -71,3 +71,20 @@ export function playGameOver() {
   if (!enabled) return
   tone({ freq: 400, duration: 0.3, type: 'sine', gain: 0.14, glideTo: 150 })
 }
+
+export function playMilestone() {
+  if (!enabled) return
+  tone({ freq: 740, duration: 0.1, type: 'triangle', gain: 0.11 })
+  tone({ freq: 988, duration: 0.14, type: 'triangle', gain: 0.1, delay: 0.08 })
+}
+
+export function playHeal() {
+  if (!enabled) return
+  tone({ freq: 520, duration: 0.14, type: 'sine', gain: 0.12, glideTo: 780 })
+  tone({ freq: 780, duration: 0.18, type: 'sine', gain: 0.1, delay: 0.1 })
+}
+
+export function playNearMiss() {
+  if (!enabled) return
+  tone({ freq: 900, duration: 0.06, type: 'sine', gain: 0.06 })
+}

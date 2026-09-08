@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { playCollect, playCoin, playHit, playShield, playPoo, playHighScore, playGameOver } from './audio'
+import { playCollect, playCoin, playHit, playShield, playPoo, playHighScore, playGameOver, playMilestone, playHeal, playNearMiss } from './audio'
 
 const LANES = 3
 const HEART_START = 3
@@ -61,6 +61,7 @@ const COLLECTIBLES = [
   { key: 'sweet', kind: 'emoji', emoji: '🍬', points: 10, baseSize: 40 },
 ]
 const COIN_DATA = { key: 'coin', kind: 'sprite', sprite: 'coin', points: 5, isCoin: true, baseSize: 48 }
+const EXTRA_HEART_DATA = { key: 'extraheart', kind: 'emoji', emoji: '💗', points: 0, baseSize: 44, isExtraHeart: true }
 const OBSTACLES = [
   { key: 'football', kind: 'sprite', sprite: 'football', baseSize: 68, bouncy: true },
   { key: 'cheese', kind: 'emoji', emoji: '🧀', baseSize: 46, outline: true },
@@ -74,6 +75,13 @@ const POWERUPS = [
 function rand(min, max) { return Math.random() * (max - min) + min }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)] }
 function lerp(a, b, t) { return a + (b - a) * t }
+
+function streakMultiplier(streak) {
+  if (streak >= 20) return 2
+  if (streak >= 10) return 1.5
+  if (streak >= 5) return 1.2
+  return 1
+}
 
 function useSprites() {
   const ref = useRef({})
@@ -101,18 +109,29 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     spawnTimer: 0,
     spawnInterval: 0.85,
     powerupCooldown: 4,
+    extraHeartCooldown: 14,
+    nearMissCooldown: 0,
     hearts: HEART_START,
     coins: 0,
     score: 0,
     shieldTime: 0,
     invuln: 0,
+    recoveryTime: 0,
+    streak: 0,
+    milestoneTier: 0,
     poofs: [],
+    confetti: [],
     over: false,
     hudTimer: 0,
-    introTimer: 4.5,
+    introTimer: typeof window !== 'undefined' && localStorage.getItem('lottiesworld_seen_tutorial') === '1' ? 1.8 : 4.5,
+    introFull: !(typeof window !== 'undefined' && localStorage.getItem('lottiesworld_seen_tutorial') === '1'),
   }).current
 
-  const [hud, setHud] = useState({ hearts: HEART_START, coins: 0, score: 0, shieldTime: 0, intro: true })
+  useEffect(() => {
+    if (state.introFull) localStorage.setItem('lottiesworld_seen_tutorial', '1')
+  }, [])
+
+  const [hud, setHud] = useState({ hearts: HEART_START, coins: 0, score: 0, shieldTime: 0, intro: true, introFull: state.introFull, streakMult: 1 })
   const rafRef = useRef(null)
   const lastTsRef = useRef(null)
   const pausedRef = useRef(paused)
@@ -199,8 +218,14 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
 
   function update(dt, w, h) {
     state.elapsed += dt
-    state.travelTime = Math.max(1.0, 2.15 - state.elapsed * 0.012)
-    state.spawnInterval = Math.max(0.42, 0.85 - state.elapsed * 0.006)
+
+    // difficulty ramps up but plateaus at a gentler cap than before, and eases
+    // off for a couple of seconds right after a hit so mistakes don't compound
+    if (state.recoveryTime > 0) state.recoveryTime = Math.max(0, state.recoveryTime - dt)
+    const recoveryEase = (state.recoveryTime / 2.5) * 0.55
+    const baseTravelTime = Math.max(1.3, 2.15 - state.elapsed * 0.010)
+    state.travelTime = baseTravelTime + recoveryEase
+    state.spawnInterval = Math.max(0.5, 0.85 - state.elapsed * 0.005) + recoveryEase * 0.3
 
     state.laneX += (state.lane - state.laneX) * Math.min(dt * 10, 1)
     state.score += dt * (1 / state.travelTime) * 26
@@ -209,6 +234,8 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     if (state.invuln > 0) state.invuln = Math.max(0, state.invuln - dt)
     if (state.introTimer > 0) state.introTimer = Math.max(0, state.introTimer - dt)
     state.powerupCooldown = Math.max(0, state.powerupCooldown - dt)
+    state.extraHeartCooldown = Math.max(0, state.extraHeartCooldown - dt)
+    state.nearMissCooldown = Math.max(0, state.nearMissCooldown - dt)
 
     state.spawnTimer -= dt
     if (state.spawnTimer <= 0) {
@@ -225,10 +252,21 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
       if (e.lane === state.lane && e.u >= 0.93) {
         resolveEntity(e)
       } else if (e.u >= 1.04) {
-        // reached/passed the player without matching lane — missed, not collected.
-        // fade it out immediately instead of letting it linger at full size.
+        // reached/passed the player without matching lane — missed, not collected
         e.resolved = true
         e.missed = true
+        if (e.type === 'obstacle') {
+          // successfully dodged — small bonus every time, but the sound/popup
+          // only occasionally so it stays a nice touch instead of constant noise
+          state.score += 5
+          if (state.nearMissCooldown <= 0) {
+            state.nearMissCooldown = 5
+            playNearMiss()
+            const { w: cw, h: ch } = sizeRef.current
+            const p = perspectiveAt(cw, ch, e.lane, 1)
+            state.poofs.push({ x: p.x, y: p.y - 10, t: 0.6, text: 'phew!' })
+          }
+        }
       }
     }
 
@@ -238,18 +276,60 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     }
 
     state.poofs = state.poofs.filter((p) => (p.t -= dt) > 0)
+    state.confetti = state.confetti.filter((c) => {
+      c.life -= dt
+      c.x += c.vx * dt
+      c.y += c.vy * dt
+      c.vy += 160 * dt
+      return c.life > 0
+    })
+
+    // milestone celebration every 100 points
+    const tier = Math.floor(state.score / 100)
+    if (tier > state.milestoneTier) {
+      state.milestoneTier = tier
+      playMilestone()
+      spawnConfetti(w / 2, h * 0.35)
+    }
 
     if (state.hearts <= 0) endGame()
 
     state.hudTimer -= dt
     if (state.hudTimer <= 0 || state.hearts <= 0) {
       state.hudTimer = 0.08
-      setHud({ hearts: state.hearts, coins: state.coins, score: Math.round(state.score), shieldTime: state.shieldTime, intro: state.introTimer > 0 })
+      setHud({
+        hearts: state.hearts,
+        coins: state.coins,
+        score: Math.round(state.score),
+        shieldTime: state.shieldTime,
+        intro: state.introTimer > 0,
+        introFull: state.introFull,
+        streakMult: streakMultiplier(state.streak),
+      })
     }
   }
 
+  // obstacle lanes that are still "in play" (not yet reached/resolved) —
+  // used to guarantee there's always at least one clear lane to dodge into
+  function activeObstacleLanes() {
+    const s = new Set()
+    for (const e of state.entities) {
+      if (e.type === 'obstacle' && !e.resolved && e.u < 0.92) s.add(e.lane)
+    }
+    return s
+  }
+
   function spawnEntity() {
-    const lane = Math.floor(rand(0, LANES))
+    // rare mercy pickup — only offered when actually missing a heart, and
+    // never competes with the obstacle-fairness logic below since it's
+    // always welcome in any lane
+    if (state.hearts < HEART_START && state.extraHeartCooldown <= 0 && Math.random() < 0.05) {
+      state.extraHeartCooldown = rand(22, 32)
+      const lane = Math.floor(rand(0, LANES))
+      state.entities.push({ id: Math.random().toString(36).slice(2), type: 'collectible', data: EXTRA_HEART_DATA, lane, u: 0, resolved: false, fade: 1 })
+      return
+    }
+
     let type, data
     const canPowerup = state.powerupCooldown <= 0
     const roll = Math.random()
@@ -264,18 +344,58 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
       type = 'collectible'
       data = Math.random() < 0.45 ? COIN_DATA : pick(COLLECTIBLES)
     }
+
+    let lane
+    if (type === 'obstacle') {
+      const occupied = activeObstacleLanes()
+      if (occupied.size >= LANES - 1) {
+        // would leave no clear lane to dodge into — swap this spawn for a
+        // collectible instead of blocking the player unfairly
+        type = 'collectible'
+        data = Math.random() < 0.45 ? COIN_DATA : pick(COLLECTIBLES)
+        lane = Math.floor(rand(0, LANES))
+      } else {
+        const clearLanes = [0, 1, 2].filter((l) => !occupied.has(l))
+        lane = clearLanes[Math.floor(rand(0, clearLanes.length))]
+      }
+    } else {
+      lane = Math.floor(rand(0, LANES))
+    }
+
     const entity = { id: Math.random().toString(36).slice(2), type, data, lane, u: 0, resolved: false, fade: 1 }
     if (data.bouncy) entity.bounce = { phase: rand(0, Math.PI * 2), rate: rand(4.2, 6), amp: rand(0.28, 0.4), spin: rand(-3, 3) }
     state.entities.push(entity)
   }
 
+  function spawnConfetti(x, y) {
+    const colors = ['🎉', '✨', '⭐', '🌈']
+    for (let i = 0; i < 10; i++) {
+      const angle = rand(0, Math.PI * 2)
+      const speed = rand(60, 160)
+      state.confetti.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 80,
+        life: rand(0.7, 1.1),
+        maxLife: 1.1,
+        emoji: colors[Math.floor(rand(0, colors.length))],
+      })
+    }
+  }
+
   function resolveEntity(e) {
     e.resolved = true
     if (e.type === 'collectible') {
-      state.score += e.data.points
-      if (e.data.isCoin) state.coins += 1
-      playCollect()
-      if (e.data.isCoin) playCoin()
+      if (e.data.isExtraHeart) {
+        state.hearts = Math.min(HEART_START, state.hearts + 1)
+        playHeal()
+      } else {
+        state.streak += 1
+        state.score += e.data.points * streakMultiplier(state.streak)
+        if (e.data.isCoin) state.coins += 1
+        playCollect()
+        if (e.data.isCoin) playCoin()
+      }
     } else if (e.type === 'powerup') {
       if (e.data.key === 'shield') {
         state.shieldTime = SHIELD_DURATION
@@ -298,6 +418,8 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
       } else if (state.invuln <= 0) {
         state.hearts -= 1
         state.invuln = 1.1
+        state.recoveryTime = 2.5
+        state.streak = 0
         playHit()
       }
     }
@@ -314,6 +436,7 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     drawEntities(ctx, w, h)
     drawPoofs(ctx, w, h)
     drawPlayer(ctx, w, h)
+    drawConfetti(ctx, w, h)
 
     ctx.restore()
   }
@@ -459,6 +582,12 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
         ctx.fillStyle = 'rgba(255,255,255,0.7)'
         ctx.beginPath(); ctx.arc(p.x, p.y, size * 0.78, 0, Math.PI * 2); ctx.fill()
       }
+      if (e.data.isExtraHeart && !e.resolved) {
+        ctx.globalAlpha = fadeMul * (0.4 + 0.3 * Math.sin(state.elapsed * 6))
+        ctx.fillStyle = 'rgba(255,110,150,0.6)'
+        ctx.beginPath(); ctx.arc(p.x, p.y, size * 0.75, 0, Math.PI * 2); ctx.fill()
+        ctx.globalAlpha = fadeMul
+      }
 
       // obstacles that are easy to lose against the rainbow road get a dark
       // warning badge behind them — strong contrast against any hue, and
@@ -514,10 +643,29 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
   function drawPoofs(ctx, w, h) {
     for (const p of state.poofs) {
       ctx.save()
-      ctx.globalAlpha = Math.max(0, p.t / 0.5)
-      ctx.font = `${26 + (0.5 - p.t) * 30}px serif`
+      const dur = p.text ? 0.6 : 0.5
+      ctx.globalAlpha = Math.max(0, p.t / dur)
       ctx.textAlign = 'center'
-      ctx.fillText('✨', p.x, p.y)
+      if (p.text) {
+        ctx.font = `700 ${15}px 'Trebuchet MS', sans-serif`
+        ctx.fillStyle = '#ff8fc7'
+        ctx.fillText(p.text, p.x, p.y - (dur - p.t) * 20)
+      } else {
+        ctx.font = `${26 + (0.5 - p.t) * 30}px serif`
+        ctx.fillText('✨', p.x, p.y)
+      }
+      ctx.restore()
+    }
+  }
+
+  function drawConfetti(ctx, w, h) {
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    for (const c of state.confetti) {
+      ctx.save()
+      ctx.globalAlpha = Math.max(0, c.life / c.maxLife)
+      ctx.font = '20px serif'
+      ctx.fillText(c.emoji, c.x, c.y)
       ctx.restore()
     }
   }
@@ -610,14 +758,24 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
         </button>
       </div>
 
+      {hud.streakMult > 1 && (
+        <div className="streak-badge">🔥 x{hud.streakMult}</div>
+      )}
+
       {hud.shieldTime > 0 && (
         <div className="shield-badge">🐰 Shield {Math.ceil(hud.shieldTime)}s</div>
       )}
 
       {hud.intro && (
         <div className="intro-banner">
-          <div>🪙 🐚 💖 🍫 🍬 — collect these!</div>
-          <div>⚽ 🧀 🍋 — dodge these!</div>
+          {hud.introFull ? (
+            <>
+              <div>🪙 🐚 💖 🍫 🍬 — collect these!</div>
+              <div>⚽ 🧀 🍋 — dodge these!</div>
+            </>
+          ) : (
+            <div>Collect the goodies, dodge the rest!</div>
+          )}
         </div>
       )}
 

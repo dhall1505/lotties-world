@@ -216,6 +216,18 @@ body {
   color: #d9407e;
 }
 
+.streak-badge {
+  position: absolute;
+  top: 58px; left: 14px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #e8622a;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.08);
+}
+
 .intro-banner {
   position: absolute;
   top: 90px; left: 50%; transform: translateX(-50%);
