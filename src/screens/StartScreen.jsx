@@ -65,7 +65,7 @@ export default function StartScreen({ highScore, onPlay }) {
         {sound ? '🔊 Sound On' : '🔇 Sound Off'}
       </button>
 
-      <p className="hint">Swipe left / right or use the arrow buttons to steer!</p>
+      <p className="hint">Swipe left or right to steer!</p>
     </div>
   )
 }

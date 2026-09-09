@@ -151,7 +151,7 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     function onTouchEnd(e) {
       if (touchStartX == null) return
       const dx = e.changedTouches[0].clientX - touchStartX
-      if (Math.abs(dx) > 30) moveLane(dx > 0 ? 1 : -1)
+      if (Math.abs(dx) > 24) moveLane(dx > 0 ? 1 : -1)
       touchStartX = null
     }
     function onKey(e) {
@@ -778,11 +778,6 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
           )}
         </div>
       )}
-
-      <div className="lane-buttons">
-        <button className="lane-btn" onClick={() => moveLane(-1)} aria-label="Move left">◀</button>
-        <button className="lane-btn" onClick={() => moveLane(1)} aria-label="Move right">▶</button>
-      </div>
     </div>
   )
 }
