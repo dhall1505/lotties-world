@@ -3,7 +3,7 @@ import { isSoundEnabled, setSoundEnabled } from '../audio'
 
 const BASE = import.meta.env.BASE_URL
 
-export default function StartScreen({ highScore, onPlay }) {
+export default function StartScreen({ highScore, onPlay, onExit }) {
   const [sound, setSound] = React.useState(isSoundEnabled())
 
   function toggleSound() {
@@ -15,6 +15,8 @@ export default function StartScreen({ highScore, onPlay }) {
 
   return (
     <div className="screen start-screen">
+      {onExit && <button className="home-link" onClick={onExit}>← All Games</button>}
+
       <div className="hero-scene">
         <div className="hero-sun" />
         <div className="hero-rainbow" />

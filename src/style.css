@@ -65,6 +65,22 @@ body {
   padding: 24px;
   gap: 10px;
   overflow-y: auto;
+  position: relative;
+}
+
+.home-link {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  border: none;
+  background: rgba(255,255,255,0.85);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #7a4a6b;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.08);
+  cursor: pointer;
 }
 
 .hero-scene {

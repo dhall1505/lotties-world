@@ -1,13 +1,14 @@
-# Lottie's World 🌈🚗
+# Lottie's World 🌈☁️
 
-A bright, simple endless-driving game for young children. Lottie and her
-sausage dog Autumn drive along a magical rainbow road, dodging obstacles and
-collecting their favourite things.
+A hub of two bright, simple games for young children, starring Lottie and her
+sausage dog Autumn.
 
-Built with React + Vite. No external image or audio assets — the artwork is
-drawn live on a `<canvas>` and the sound effects are synthesized in the
-browser, so the whole game is just code (easy to git-push, no binary assets
-to manage).
+- **Rainbow Road** 🚗 — an endless driving game (dodge, collect, drive along a rainbow road)
+- **Cloud Jump** ☁️ — an endless vertical bouncer (jump cloud to cloud, collect caterpillar toys, dodge a mischievous cat)
+
+Built with React + Vite. Both games are canvas-based with synthesized sound
+effects (no audio files to manage) and use `localStorage` for best scores —
+no accounts, no backend.
 
 ## Play locally
 
@@ -17,69 +18,92 @@ npm run dev
 ```
 
 Then open the printed `localhost` URL. On your phone, use your computer's
-local network IP (e.g. `npm run dev -- --host`) to test touch swipe controls.
+local network IP (e.g. `npm run dev -- --host`) to test touch controls.
 
-## Deploy to GitHub Pages (same flow as Colour Snap)
+## Deploy to GitHub Pages
 
-1. Create a new GitHub repo, e.g. `github.com/dhall1505/lotties-world`.
-2. If the repo name is different from `lotties-world`, update the `base` in
-   `vite.config.js` to match (e.g. `base: '/your-repo-name/'`).
-3. Push this project:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: Lottie's World"
-   git branch -M main
-   git remote add origin https://github.com/dhall1505/lotties-world.git
-   git push -u origin main
-   ```
-4. Install dependencies and deploy the built site to the `gh-pages` branch:
-   ```bash
-   npm install
-   npm run deploy
-   ```
-   This runs `vite build` then publishes the `dist` folder to `gh-pages` via
-   the `gh-pages` package (same tool you used for Colour Snap).
-5. In the GitHub repo settings → Pages, make sure the source is set to the
-   `gh-pages` branch (it may already be selected automatically after step 4).
-6. Your game will be live at:
-   `https://dhall1505.github.io/lotties-world/`
+Same flow as before:
 
-## Gameplay summary
+```bash
+npm install
+npm run deploy
+```
 
-- Swipe left/right (or tap the on-screen arrows) to steer across 3 lanes.
-- Collect dog treats, shells, hearts, choc jars, sweets and coins for points.
-- Avoid footballs, TVs, cheese and sour sweets — each hit costs one of your
-  three hearts.
-- 🐰 Bunny Comforter power-up: temporary shield, absorbs one hit.
-- 💩 Poo power-up: instantly clears every obstacle on screen.
-- Speed increases gently over time. High score is saved on-device
-  (`localStorage`) — no account needed.
+This runs `vite build` then publishes `dist/` to the `gh-pages` branch. If
+you haven't already, see the earlier setup steps for creating/connecting the
+GitHub repo (`github.com/dhall1505/lotties-world`) and enabling Pages in the
+repo's Settings → Pages, pointed at the `gh-pages` branch.
+
+## Project structure
+
+```
+src/
+  main.jsx          entry point — renders Hub
+  Hub.jsx            the two-game landing page
+  hub.css            hub styles
+
+  App.jsx            Rainbow Road (top-level) — unchanged gameplay,
+  Game.jsx           only addition is a "← All Games" link on its start
+  audio.js           screen so you can get back to the hub
+  style.css
+  screens/           Rainbow Road's screens
+
+  games/cloud-jump/
+    CloudJumpApp.jsx     top-level screen state machine + asset preloader
+    CloudJumpGame.jsx    the canvas engine (physics, platforms, collisions)
+    audio.js             synthesized sound effects
+    cloudjump.css        styles (all classes prefixed cj-)
+    screens/             Start, How to Play, Pause, Game Over
+
+public/
+  sprites/            Rainbow Road art
+  sprites-cj/          Cloud Jump art (your supplied PNGs, resized)
+```
+
+Rainbow Road's own files were left untouched apart from the one small
+addition (the hub link) — its gameplay, physics, and mechanics are exactly
+as they were.
+
+## Cloud Jump — how it works
+
+- **Physics**: gravity + a fixed bounce velocity — Lottie & Autumn auto-bounce
+  on every landing, you only steer horizontally (drag/tap-hold either side of
+  the screen, or arrow keys on desktop).
+- **Platform generation**: procedurally generated upward, always within a
+  provably reachable vertical/horizontal range of the physics constants (see
+  `GRAVITY`, `BOUNCE_VY`, `H_MAX_SPEED` at the top of `CloudJumpGame.jsx`) —
+  every jump is guaranteed reachable by construction.
+- **Difficulty**: three tiers gated by score (`getDifficulty()`), gradually
+  widening gaps, introducing moving platforms, and increasing cat frequency.
+- **Cats**: positioned with a horizontal offset within their platform (not
+  dead-center), so the platform itself stays landable — you just have to land
+  away from the cat.
+- **Rescue**: one free rescue per run if you fall off the bottom of the
+  screen; a heart is still lost, but you're placed back on the last platform
+  you safely landed on.
+- **Background**: no separate sky-background asset was supplied, so it's
+  built from a few lightweight procedural parallax layers (soft cloud blobs,
+  sparkles, floating hearts, occasional pastel rainbow arcs) drawn directly
+  on the canvas — see `drawDecor()`.
 
 ## Where to customise
 
-- **Colours / theme** — `src/style.css`
-- **Road perspective / geometry** — the constants at the top of `src/Game.jsx`
-  (`VANISH_X`, `HORIZON_Y`, `PLAYER_Y`, `ROAD_BOTTOM_LEFT/RIGHT`, `DEPTH_POW`)
-  were measured from `public/sprites/road.png`. If you swap in a different
-  road image, these will need re-measuring to match its vanishing point.
-- **Collectibles / obstacles / power-ups** — the `COLLECTIBLES`, `OBSTACLES`,
-  `POWERUPS` arrays near the top of `src/Game.jsx`
-- **Difficulty ramp** — `state.travelTime` and `state.spawnInterval` formulas
-  in `update()` inside `src/Game.jsx`
-- **Sounds** — `src/audio.js`
+**Rainbow Road** — see the constants/arrays at the top of `src/Game.jsx`
+(perspective geometry, collectibles/obstacles/power-ups, difficulty ramp).
 
-## Art assets (public/sprites/)
+**Cloud Jump** — see the constants/functions near the top of
+`src/games/cloud-jump/CloudJumpGame.jsx`:
+- Physics feel — `GRAVITY`, `BOUNCE_VY`, `H_ACCEL`, `H_MAX_SPEED`, `H_RETAIN_PER_SEC`
+- Difficulty tiers — `getDifficulty()`
+- Scoring — `currentScore()`, `collectCaterpillar()`
+- Background decor — `drawDecor()` / `drawDecorLayer()`
 
-Currently using your supplied images for: the car+Lottie+Autumn sprite, the
-road background, coins, the bouncing football, shells, hearts, and both
-power-ups. Still using placeholder emoji (not real art) for: dog treats,
-choc jar, fruity sweets, cheese, and sour sweets — drop matching transparent
-PNGs into `public/sprites/` and wire them into the `COLLECTIBLES` /
-`OBSTACLES` arrays in `src/Game.jsx` (follow the existing `kind: 'sprite'`
-entries as a template) whenever you have them.
+## A note on testing
 
-Sprites were downscaled from the originals to keep the page light on
-mobile data — no need to re-compress if you swap in new art, just keep
-transparent PNGs roughly in the same size range (icons ~300–700px on their
-longest side is plenty).
+I don't have a browser in the environment I built this in, so I've verified
+the code carefully (every file's brackets balance, the logic was traced
+through by hand) but haven't been able to click through it myself. Please
+give Cloud Jump a proper playtest — physics/collision tuning in particular
+is the kind of thing that's hard to get perfectly right without actually
+playing it. If jumps feel too easy/hard, the gap ranges and physics constants
+above are the place to tune.

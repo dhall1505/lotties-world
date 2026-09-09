@@ -9,7 +9,7 @@ const HIGH_SCORE_KEY = 'lottiesworld_highscore'
 const BEST_STREAK_KEY = 'lottiesworld_best_streak'
 const BEST_COINS_KEY = 'lottiesworld_best_coins'
 
-export default function App() {
+export default function App({ onExit }) {
   const [screen, setScreen] = useState('start') // start | playing | gameover
   const [paused, setPaused] = useState(false)
   const [highScore, setHighScore] = useState(() => Number(localStorage.getItem(HIGH_SCORE_KEY) || 0))
@@ -51,7 +51,7 @@ export default function App() {
 
   return (
     <div className="app-root">
-      {screen === 'start' && <StartScreen highScore={highScore} onPlay={startGame} />}
+      {screen === 'start' && <StartScreen highScore={highScore} onPlay={startGame} onExit={onExit} />}
 
       {screen === 'playing' && (
         <>
