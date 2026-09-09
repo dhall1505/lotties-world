@@ -249,6 +249,28 @@ body {
   100% { opacity: 0; }
 }
 
+.journey-banner {
+  position: absolute;
+  top: 90px; left: 50%; transform: translateX(-50%);
+  background: rgba(120, 200, 230, 0.92);
+  border-radius: 14px;
+  padding: 8px 18px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.1);
+  animation: journeyFade 3.2s ease forwards;
+  pointer-events: none;
+  white-space: nowrap;
+}
+@keyframes journeyFade {
+  0% { opacity: 0; transform: translate(-50%, -6px); }
+  15% { opacity: 1; transform: translate(-50%, 0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* ---------- pause overlay ---------- */
 
 .overlay {
@@ -279,13 +301,38 @@ body {
   border-radius: 18px;
   padding: 16px 24px;
   width: 100%;
-  max-width: 280px;
+  max-width: 300px;
+  max-height: 46vh;
+  overflow-y: auto;
   box-shadow: 0 4px 0 rgba(0,0,0,0.08);
 }
 .stat-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 6px 0;
   border-bottom: 1px dashed #eed7e6;
+  gap: 10px;
 }
 .stat-row:last-child { border-bottom: none; }
+.stat-group-label {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b98bc9;
+  padding: 10px 0 4px;
+}
+.stat-group-label:first-child { padding-top: 0; }
+.new-badge {
+  display: inline-block;
+  margin-left: 6px;
+  background: #ff9f6e;
+  color: white;
+  font-size: 0.62rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}

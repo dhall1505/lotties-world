@@ -6,11 +6,15 @@ import Game from './Game.jsx'
 import { setSoundEnabled } from './audio'
 
 const HIGH_SCORE_KEY = 'lottiesworld_highscore'
+const BEST_STREAK_KEY = 'lottiesworld_best_streak'
+const BEST_COINS_KEY = 'lottiesworld_best_coins'
 
 export default function App() {
   const [screen, setScreen] = useState('start') // start | playing | gameover
   const [paused, setPaused] = useState(false)
   const [highScore, setHighScore] = useState(() => Number(localStorage.getItem(HIGH_SCORE_KEY) || 0))
+  const [bestStreak, setBestStreak] = useState(() => Number(localStorage.getItem(BEST_STREAK_KEY) || 0))
+  const [bestCoins, setBestCoins] = useState(() => Number(localStorage.getItem(BEST_COINS_KEY) || 0))
   const [lastResult, setLastResult] = useState(null)
   const [gameKey, setGameKey] = useState(0) // bump to fully reset Game component state
 
@@ -26,12 +30,22 @@ export default function App() {
     setScreen('playing')
   }
 
-  function handleGameOver({ score, coins, isNewHighScore }) {
+  function handleGameOver({ score, coins, isNewHighScore, longestStreak }) {
     if (isNewHighScore) {
       localStorage.setItem(HIGH_SCORE_KEY, String(score))
       setHighScore(score)
     }
-    setLastResult({ score, coins, isNewHighScore })
+    const isNewStreakBest = longestStreak > bestStreak
+    if (isNewStreakBest) {
+      localStorage.setItem(BEST_STREAK_KEY, String(longestStreak))
+      setBestStreak(longestStreak)
+    }
+    const isNewCoinsBest = coins > bestCoins
+    if (isNewCoinsBest) {
+      localStorage.setItem(BEST_COINS_KEY, String(coins))
+      setBestCoins(coins)
+    }
+    setLastResult({ score, coins, isNewHighScore, longestStreak, isNewStreakBest, isNewCoinsBest })
     setScreen('gameover')
   }
 
@@ -62,8 +76,13 @@ export default function App() {
         <GameOverScreen
           score={lastResult.score}
           coins={lastResult.coins}
+          longestStreak={lastResult.longestStreak}
           highScore={highScore}
+          bestStreak={bestStreak}
+          bestCoins={bestCoins}
           isNewHighScore={lastResult.isNewHighScore}
+          isNewStreakBest={lastResult.isNewStreakBest}
+          isNewCoinsBest={lastResult.isNewCoinsBest}
           onPlayAgain={startGame}
           onHome={() => setScreen('start')}
         />

@@ -72,6 +72,15 @@ const POWERUPS = [
   { key: 'poo', kind: 'sprite', sprite: 'poo', baseSize: 62 },
 ]
 
+const JOURNEY_MESSAGES = [
+  'Cruising past the seashells! 🐚',
+  'Into the sunflower fields! 🌻',
+  'Past the lighthouse cliffs! 🏰',
+  'Chasing the rainbow! 🌈',
+  'Racing along the coast! 🌊',
+  'Still going strong! ⭐',
+]
+
 function rand(min, max) { return Math.random() * (max - min) + min }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)] }
 function lerp(a, b, t) { return a + (b - a) * t }
@@ -118,7 +127,12 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     invuln: 0,
     recoveryTime: 0,
     streak: 0,
+    longestStreak: 0,
     milestoneTier: 0,
+    journeyTier: 0,
+    journeyText: '',
+    journeyBannerTimer: 0,
+    coinRushCooldown: 13,
     poofs: [],
     confetti: [],
     over: false,
@@ -131,7 +145,7 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     if (state.introFull) localStorage.setItem('lottiesworld_seen_tutorial', '1')
   }, [])
 
-  const [hud, setHud] = useState({ hearts: HEART_START, coins: 0, score: 0, shieldTime: 0, intro: true, introFull: state.introFull, streakMult: 1 })
+  const [hud, setHud] = useState({ hearts: HEART_START, coins: 0, score: 0, shieldTime: 0, intro: true, introFull: state.introFull, streakMult: 1, journeyText: '' })
   const rafRef = useRef(null)
   const lastTsRef = useRef(null)
   const pausedRef = useRef(paused)
@@ -193,7 +207,7 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     const isNew = state.score > highScore
     if (isNew) playHighScore()
     else playGameOver()
-    onGameOver({ score: Math.round(state.score), coins: state.coins, isNewHighScore: isNew })
+    onGameOver({ score: Math.round(state.score), coins: state.coins, isNewHighScore: isNew, longestStreak: state.longestStreak })
   }
 
   useEffect(() => {
@@ -292,6 +306,22 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
       spawnConfetti(w / 2, h * 0.35)
     }
 
+    // journey flavor text every 300 points
+    const jTier = Math.floor(state.score / 300)
+    if (jTier > state.journeyTier) {
+      state.journeyTier = jTier
+      state.journeyText = JOURNEY_MESSAGES[(jTier - 1) % JOURNEY_MESSAGES.length]
+      state.journeyBannerTimer = 3.2
+    }
+    if (state.journeyBannerTimer > 0) state.journeyBannerTimer = Math.max(0, state.journeyBannerTimer - dt)
+
+    // occasional coin rush
+    state.coinRushCooldown -= dt
+    if (state.coinRushCooldown <= 0) {
+      state.coinRushCooldown = rand(18, 30)
+      spawnCoinRush()
+    }
+
     if (state.hearts <= 0) endGame()
 
     state.hudTimer -= dt
@@ -305,6 +335,7 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
         intro: state.introTimer > 0,
         introFull: state.introFull,
         streakMult: streakMultiplier(state.streak),
+        journeyText: state.journeyBannerTimer > 0 ? state.journeyText : '',
       })
     }
   }
@@ -383,6 +414,22 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
     }
   }
 
+  // occasional deliberate run of coins down one lane — spawned directly
+  // rather than through the random roll, staggered via negative starting u
+  // so they trail out into a evenly-spaced "train" instead of overlapping
+  function spawnCoinRush() {
+    const lane = Math.floor(rand(0, LANES))
+    const count = Math.floor(rand(4, 6))
+    const spacing = 0.16
+    for (let i = 0; i < count; i++) {
+      state.entities.push({
+        id: Math.random().toString(36).slice(2),
+        type: 'collectible', data: COIN_DATA, lane,
+        u: -i * spacing, resolved: false, fade: 1,
+      })
+    }
+  }
+
   function resolveEntity(e) {
     e.resolved = true
     if (e.type === 'collectible') {
@@ -391,6 +438,7 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
         playHeal()
       } else {
         state.streak += 1
+        state.longestStreak = Math.max(state.longestStreak, state.streak)
         state.score += e.data.points * streakMultiplier(state.streak)
         if (e.data.isCoin) state.coins += 1
         playCollect()
@@ -777,6 +825,10 @@ export default function Game({ highScore, onGameOver, paused, setPaused }) {
             <div>Collect the goodies, dodge the rest!</div>
           )}
         </div>
+      )}
+
+      {hud.journeyText && !hud.intro && (
+        <div className="journey-banner">{hud.journeyText}</div>
       )}
     </div>
   )
